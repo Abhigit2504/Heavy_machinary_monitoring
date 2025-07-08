@@ -309,7 +309,7 @@ const styles = StyleSheet.create({
   },
   deleteBtn: {
     marginTop: 12,
-    backgroundColor: '#DC2626',
+    backgroundColor: '#483b87',
     paddingVertical: 10,
     borderRadius: 10,
     flexDirection: 'row',
