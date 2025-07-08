@@ -1,3 +1,5 @@
+// === ✅ 1. DownloadScreen.jsx (Updated + Integrated History Tracking) ===
+
 import React, { useState } from 'react';
 import {
   View,
@@ -16,11 +18,12 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as Animatable from 'react-native-animatable';
-// Optional: import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
 
 const BASE_URL = 'http://192.168.1.5:8000';
 
-const DownloadScreen = () => {
+const DownloadScreen = ({ navigation }) => {
   const [downloadType, setDownloadType] = useState('all');
   const [machineId, setMachineId] = useState('');
   const [fromDate, setFromDate] = useState(null);
@@ -30,51 +33,77 @@ const DownloadScreen = () => {
   const [showError, setShowError] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [downloadSuccess, setDownloadSuccess] = useState(false);
+const handleDownload = async () => {
+  if (!fromDate || !toDate) {
+    Alert.alert('Error', 'Please select both From and To dates');
+    return;
+  }
 
-  const handleDownload = async () => {
-    if (!fromDate || !toDate) {
-      Alert.alert('Error', 'Please select both From and To dates');
-      return;
-    }
+  if (downloadType === 'byId' && !machineId.trim()) {
+    Alert.alert('Error', 'Please enter Machine ID');
+    return;
+  }
 
-    if (downloadType === 'byId' && !machineId.trim()) {
-      Alert.alert('Error', 'Please enter Machine ID');
-      return;
-    }
+  const fromISO = dayjs(fromDate).format('YYYY-MM-DDTHH:mm:ss');
+  const toISO = dayjs(toDate).format('YYYY-MM-DDTHH:mm:ss');
 
-    const fromISO = dayjs(fromDate).format('YYYY-MM-DDTHH:mm:ss');
-    const toISO = dayjs(toDate).format('YYYY-MM-DDTHH:mm:ss');
+  let url = '';
+  if (downloadType === 'all') {
+    url = `${BASE_URL}/api/download/all-machines-pdf/?from_date=${fromISO}&to_date=${toISO}`;
+  } else {
+    url = `${BASE_URL}/api/download/machine/${machineId}/pdf/?from_date=${fromISO}&to_date=${toISO}`;
+  }
 
-    let url = '';
-    if (downloadType === 'all') {
-      url = `${BASE_URL}/api/download/all-machines-pdf/?from_date=${fromISO}&to_date=${toISO}`;
-    } else {
-      url = `${BASE_URL}/api/download/machine/${machineId}/pdf/?from_date=${fromISO}&to_date=${toISO}`;
-    }
+  try {
+    setLoading(true);
+    setShowError(false);
+    setDownloadSuccess(false);
 
+    const fileUri = FileSystem.documentDirectory + `report_${Date.now()}.pdf`;
+    const downloadRes = await FileSystem.downloadAsync(url, fileUri);
+
+    const fileContent = await FileSystem.readAsStringAsync(fileUri);
+
+    let parsedJSON = null;
     try {
-      setLoading(true);
-      setShowError(false);
-      setDownloadSuccess(false);
-
-      const fileUri = FileSystem.documentDirectory + `report_${Date.now()}.pdf`;
-      const downloadRes = await FileSystem.downloadAsync(url, fileUri);
-
-      if (downloadRes.status === 200) {
-        await Sharing.shareAsync(fileUri);
-        setDownloadSuccess(true);
-        // Optional: Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      } else {
-        const errorText = await FileSystem.readAsStringAsync(downloadRes.uri);
-        throw new Error(errorText || 'Download failed');
-      }
-    } catch (err) {
-      setErrorMsg(err.message || 'Failed to download report.');
-      setShowError(true);
-    } finally {
-      setLoading(false);
+      parsedJSON = JSON.parse(fileContent);
+    } catch (_) {
+      // Not JSON → it's a valid PDF, continue
     }
-  };
+
+    if (parsedJSON && parsedJSON.error) {
+      throw new Error(parsedJSON.error);
+    }
+
+    // Otherwise, valid PDF
+    await Sharing.shareAsync(fileUri);
+    setDownloadSuccess(true);
+
+    const user = await AsyncStorage.getItem('user');
+    const parsedUser = JSON.parse(user);
+
+    if (!parsedUser?.id) {
+      console.warn("User ID not found in AsyncStorage");
+      return;
+    }
+
+    await axios.post(`${BASE_URL}/api/auth/history/record/`, {
+      type: downloadType === 'all' ? 'All Machines' : `By GFRID: ${machineId}`,
+      fromDate: fromISO,
+      toDate: toISO,
+      userId: parsedUser.id,
+    });
+
+  } catch (err) {
+    console.error("Download error:", err.message);
+    setErrorMsg(err.message || 'Failed to download report.');
+    setShowError(true);
+  } finally {
+    setLoading(false);
+  }
+};
+
+
 
   return (
     <KeyboardAvoidingView
@@ -86,6 +115,7 @@ const DownloadScreen = () => {
           <Ionicons name="document-outline" size={26} color="#1E3A8A" /> Machine Report Download
         </Animatable.Text>
 
+        {/* Date Pickers */}
         <Animatable.View animation="fadeIn" delay={100}>
           <Text style={styles.label}> Select Time Range</Text>
           <TouchableOpacity onPress={() => setShowPicker({ from: true })} style={styles.dateBtn}>
@@ -102,10 +132,11 @@ const DownloadScreen = () => {
           </TouchableOpacity>
         </Animatable.View>
 
+        {/* Type Selection */}
         <Animatable.View animation="fadeInUp" delay={150}>
           <Text style={styles.label}>
-            <Ionicons name="folder-outline" size={17}></Ionicons>
-             Report Type</Text>
+            <Ionicons name="folder-outline" size={17}></Ionicons> Report Type
+          </Text>
           <View style={styles.toggleRow}>
             <TouchableOpacity
               style={[styles.optionBtn, downloadType === 'all' && styles.optionBtnActive]}
@@ -165,6 +196,13 @@ const DownloadScreen = () => {
           </TouchableOpacity>
         </Animatable.View>
 
+        <TouchableOpacity onPress={() => navigation.navigate('HistoryScreen')}>
+          <Text style={{ color: '#1E40AF', marginTop: 16, textAlign: 'center' }}>
+            View Download History
+          </Text>
+        </TouchableOpacity>
+
+        {/* Success & Error UI */}
         {downloadSuccess && (
           <Animatable.View animation="bounceInDown" delay={200} style={styles.successBox}>
             <Ionicons name="checkmark-circle-outline" size={28} color="#059669" />
@@ -324,13 +362,12 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
   },
-    successText: {
+  successText: {
     color: '#065F46',
     fontWeight: '600',
     fontSize: 16,
     marginTop: 6,
   },
-
 });
 
 export default DownloadScreen;

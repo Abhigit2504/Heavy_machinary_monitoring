@@ -1,7 +1,7 @@
 
 
 
-// MovementAnalysisGraph.js
+// Full MovementAnalysisGraph Component with PDF Download and Scrollable ID Buttons
 
 import React, { useEffect, useState, useMemo, useRef } from "react";
 import {
@@ -15,14 +15,19 @@ import {
   Animated,
   Modal,
   Image,
+  Alert,
 } from "react-native";
 import axios from "axios";
-import { LineChart } from "react-native-chart-kit";
+import { LineChart, BarChart } from "react-native-chart-kit";
+
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import { buildDateParams } from "../utils/dateUtils";
 import NoDataImage from "../assets/nodata.jpg";
+import ViewShot from "react-native-view-shot";
+import * as MediaLibrary from 'expo-media-library';
+import * as Print from 'expo-print';
 
 const BASE_URL = "http://192.168.1.5:8000";
 const screenWidth = Dimensions.get("window").width;
@@ -34,6 +39,7 @@ const theme = {
   danger: "#dc3545",
   background: "#f5f7fa",
   text: "#333",
+  textSecondary: "#666",
 };
 
 dayjs.extend(utc);
@@ -50,27 +56,23 @@ const MovementAnalysisGraph = ({ gfrid, fromDate, toDate, range }) => {
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const translateYAnim = useRef(new Animated.Value(30)).current;
+  const viewShotRef = useRef();
 
+  const labelColors = {};
 
-  // 🔽 Add this helper outside your component
-const labelColors = {}; // Store consistent random color per label
-
-const getRandomColorForLabel = (label) => {
-  if (!labelColors[label]) {
-    const color = `#${Math.floor(Math.random() * 16777215).toString(16).padStart(6, "0")}`;
-    labelColors[label] = color;
-  }
-  return labelColors[label];
-};
-
+  const getRandomColorForLabel = (label) => {
+    if (!labelColors[label]) {
+      const color = `#${Math.floor(Math.random() * 16777215).toString(16).padStart(6, "0")}`;
+      labelColors[label] = color;
+    }
+    return labelColors[label];
+  };
 
   const formatDuration = (s) => {
     const h = Math.floor(s / 3600);
     const m = Math.floor((s % 3600) / 60);
     return `${h}h ${m}m`;
   };
-
-
 
   const formatLabelParts = (dt, dur = null) => {
     const utcDate = dayjs.utc(dt);
@@ -148,29 +150,6 @@ const getRandomColorForLabel = (label) => {
       custom: hKeys.map(h => ({ label1: "", label2: `Dur: ${formatDuration(hours[h])}` }))
     };
   };
-  const movementConfig = {
-  idle: {
-    icon: "pause-circle",
-    color: "#FFD166",
-  },
-  drive: {
-    icon: "car-sport",
-    color: "#06D6A0",
-  },
-  alert: {
-    icon: "alert-circle",
-    color: "#EF476F",
-  },
-  stop: {
-    icon: "hand-left",
-    color: "#118AB2",
-  },
-  default: {
-    icon: "help-circle",
-    color: "#AAAAAA",
-  },
-};
-
 
   const openGraph = (label) => {
     setActiveGraph(label);
@@ -183,44 +162,21 @@ const getRandomColorForLabel = (label) => {
     translateYAnim.setValue(30);
 
     Animated.parallel([
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        useNativeDriver: true,
-      }),
-      Animated.timing(opacityAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.timing(translateYAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }),
+      Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true }),
+      Animated.timing(opacityAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
+      Animated.timing(translateYAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
     ]).start();
   };
 
   const closeGraph = () => {
     Animated.parallel([
-      Animated.timing(scaleAnim, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-      Animated.timing(opacityAnim, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-      Animated.timing(translateYAnim, {
-        toValue: 30,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      setModalVisible(false);
-    });
+      Animated.timing(scaleAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
+      Animated.timing(opacityAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
+      Animated.timing(translateYAnim, { toValue: 30, duration: 200, useNativeDriver: true }),
+    ]).start(() => setModalVisible(false));
   };
+
+ 
 
   const paginatedData = useMemo(() => {
     const data = grouped[activeGraph] || [];
@@ -232,13 +188,8 @@ const getRandomColorForLabel = (label) => {
   const chartInfo = useMemo(() => {
     if (!activeGraph || !grouped[activeGraph]) return null;
     const data = paginatedData;
-    if (currentTab === "status") {
-      const { labels, values, custom } = buildStatusChartData(data);
-      return { chartData: { labels, datasets: [{ data: values }] }, custom };
-    } else {
-      const { labels, values, custom } = buildHourlyChartData(data);
-      return { chartData: { labels, datasets: [{ data: values }] }, custom };
-    }
+    if (currentTab === "status") return buildStatusChartData(data);
+    return buildHourlyChartData(data);
   }, [activeGraph, currentTab, paginatedData]);
 
   if (loading) return <ActivityIndicator size="large" style={{ marginTop: 30 }} />;
@@ -252,122 +203,96 @@ const getRandomColorForLabel = (label) => {
           <Text style={styles.noDataText}>No movement data available</Text>
         </View>
       ) : (
-       Object.entries(grouped).map(([label]) => {
-  const color = getRandomColorForLabel(label);
-
-  return (
-    <TouchableOpacity
-      key={label}
-      style={[styles.card, { borderLeftColor: color }]}
-      onPress={() => openGraph(label)}
-      activeOpacity={0.85}
-    >
-      <View style={styles.wholecard}>
-        <Ionicons name="pulse-outline" size={24} color={color} />
-      <View style={styles.cardContent}>
-        <Text style={styles.cardText}>ID : {label.toUpperCase()}</Text>
-        <Ionicons name="chevron-forward" size={25} color={theme.textSecondary} style={styles.iconstyle} />
-      </View>
-      </View>
-      <Text style={styles.cardSubtext}>{grouped[label].length} events recorded</Text>
-    </TouchableOpacity>
-  );
-})
-      )
-      }
+        Object.entries(grouped).map(([label]) => (
+          <TouchableOpacity key={label} style={[styles.card, { borderLeftColor: getRandomColorForLabel(label) }]} onPress={() => openGraph(label)}>
+            <View style={styles.wholecard}>
+              <Ionicons name="pulse-outline" size={24} color={getRandomColorForLabel(label)} />
+              <View style={styles.cardContent}>
+                <Text style={styles.cardText}>ID : {label.toUpperCase()}</Text>
+                <Ionicons name="chevron-forward" size={25} color={theme.textSecondary} style={styles.iconstyle} />
+              </View>
+            </View>
+            <Text style={styles.cardSubtext}>{grouped[label].length} events recorded</Text>
+          </TouchableOpacity>
+        ))
+      )}
 
       <Modal visible={modalVisible} transparent animationType="none">
         <View style={styles.modalOverlay}>
-          <Animated.View
-            style={[
-              styles.popupCard,
-              {
-                transform: [{ scale: scaleAnim }, { translateY: translateYAnim }],
-                opacity: opacityAnim,
-              },
-            ]}
-          >
-            <TouchableOpacity onPress={closeGraph} style={styles.closeButton}>
-              <Ionicons name="close-circle-outline" size={32} color={theme.text} />
-            </TouchableOpacity>
-
-            <Text style={styles.popupTitle}>{activeGraph?.toUpperCase()}</Text>
-            <Text style={styles.popupSubtitle}>
-              {dayjs(fromDate).format("DD MMM YYYY")} → {dayjs(toDate).format("DD MMM YYYY")}
-            </Text>
-
-            <View style={styles.tabContainer}>
-              {["status", "analysis"].map(tab => (
-                <TouchableOpacity
-                  key={tab}
-                  onPress={() => setCurrentTab(tab)}
-                  style={[
-                    styles.tabButton,
-                    { backgroundColor: tab === currentTab ? theme.primary : "#ccc" },
-                  ]}
-                >
-                  <Ionicons
-                    name={tab === "status" ? "pulse-outline" : "analytics-outline"}
-                    size={16}
-                    color="#fff"
-                    style={{ marginRight: 6 }}
-                  />
-                  <Text style={styles.tabText}>{tab.toUpperCase()}</Text>
-                </TouchableOpacity>
-              ))}
+          <Animated.View style={[styles.popupCard, { transform: [{ scale: scaleAnim }, { translateY: translateYAnim }], opacity: opacityAnim }]}>
+            <View style={styles.modalHeader}>
+              <TouchableOpacity onPress={closeGraph} style={styles.closeButton}>
+                <Ionicons name="close-circle-outline" size={32} color={theme.text} />
+              </TouchableOpacity>
+              
             </View>
 
-            {chartInfo && (
-              <ScrollView horizontal>
-                <View>
-                  <LineChart
-                    data={chartInfo.chartData}
-                    width={Math.max(screenWidth * 0.8, chartInfo.chartData.labels.length * LABEL_WIDTH)}
-                    height={240}
-                    chartConfig={{
-                      backgroundGradientFrom: '#fff',
-                      backgroundGradientTo: '#fff',
-                      decimalPlaces: currentTab === "analysis" ? 2 : 0,
-                      color: () => 'black',
-                      labelColor: () => '#000',
-                    }}
-                    yAxisSuffix={currentTab === "analysis" ? "h" : ""}
-                    bezier={currentTab === "analysis"}
-                    style={{ margin: 10, borderRadius: 12 }}
-                    withDots={chartInfo.chartData.labels.length < 50}
-                    fromZero
-                  />
-                  <ScrollView horizontal>
-                    <View style={{ flexDirection: 'row', paddingHorizontal: 10 }}>
-                      {chartInfo.custom.map(({ label1, label2 }, i) => (
-                        <View key={i} style={{ width: LABEL_WIDTH, alignItems: 'center' }}>
-                          <Text style={{ fontSize: 11 }}>{label1}</Text>
-                          <Text style={{ fontSize: 10, color: '#666' }}>{label2}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  </ScrollView>
-                </View>
-              </ScrollView>
-            )}
+            <ViewShot ref={viewShotRef} options={{ format: 'jpg', quality: 0.9 }}>
+              <Text style={styles.popupTitle}>{activeGraph?.toUpperCase()}</Text>
+              <Text style={styles.popupSubtitle}>{dayjs(fromDate).format("DD MMM YYYY")} → {dayjs(toDate).format("DD MMM YYYY")}</Text>
+
+              <View style={styles.tabContainer}>
+                {["status", "analysis"].map(tab => (
+                  <TouchableOpacity
+                    key={tab}
+                    onPress={() => setCurrentTab(tab)}
+                    style={[styles.tabButton, { backgroundColor: tab === currentTab ? theme.primary : "#ccc" }]}
+                  >
+                    <Ionicons name={tab === "status" ? "pulse-outline" : "analytics-outline"} size={16} color="#fff" style={{ marginRight: 6 }} />
+                    <Text style={styles.tabText}>{tab.toUpperCase()}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {chartInfo && (
+                <ScrollView horizontal>
+                  <View>
+                    <LineChart
+                      data={{ labels: chartInfo.labels, datasets: [{ data: chartInfo.values }] }}
+                      width={Math.max(screenWidth * 0.8, chartInfo.labels.length * LABEL_WIDTH)}
+                      height={240}
+                      chartConfig={{ backgroundGradientFrom: '#fff', backgroundGradientTo: '#fff', decimalPlaces: currentTab === "analysis" ? 2 : 0, color: () => 'black', labelColor: () => '#000' }}
+                      yAxisSuffix={currentTab === "analysis" ? "h" : ""}
+                      bezier={currentTab === "analysis"}
+                      style={{ margin: 10, borderRadius: 12 }}
+                      fromZero
+                    />
+                    <ScrollView horizontal>
+                      <View style={{ flexDirection: 'row', paddingHorizontal: 10 }}>
+                        {chartInfo.custom.map(({ label1, label2 }, i) => (
+                          <View key={i} style={{ width: LABEL_WIDTH, alignItems: 'center' }}>
+                            <Text style={{ fontSize: 11 }}>{label1}</Text>
+                            <Text style={{ fontSize: 10, color: '#666' }}>{label2}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </ScrollView>
+                  </View>
+                </ScrollView>
+              )}
+            </ViewShot>
 
             <View style={styles.paginationContainer}>
-              <TouchableOpacity
-                onPress={() => setCurrentPage((p) => Math.max(0, p - 1))}
-                disabled={currentPage === 0}
-                style={{ padding: 10, opacity: currentPage === 0 ? 0.5 : 1 }}
-              >
+              <TouchableOpacity onPress={() => setCurrentPage(p => Math.max(0, p - 1))} disabled={currentPage === 0} style={{ padding: 10, opacity: currentPage === 0 ? 0.5 : 1 }}>
                 <Ionicons name="chevron-back" size={24} color={theme.text} />
               </TouchableOpacity>
               <Text style={{ paddingHorizontal: 10, fontWeight: '600' }}>Page {currentPage + 1}</Text>
-              <TouchableOpacity
-                onPress={() => setCurrentPage((p) => p + 1)}
-                disabled={paginatedData.length < MAX_DATA_POINTS}
-                style={{ padding: 10, opacity: paginatedData.length < MAX_DATA_POINTS ? 0.5 : 1 }}
-              >
+              <TouchableOpacity onPress={() => setCurrentPage(p => p + 1)} disabled={paginatedData.length < MAX_DATA_POINTS} style={{ padding: 10, opacity: paginatedData.length < MAX_DATA_POINTS ? 0.5 : 1 }}>
                 <Ionicons name="chevron-forward" size={24} color={theme.text} />
               </TouchableOpacity>
             </View>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.movementScrollBar}>
+              {Object.keys(grouped).map((label) => (
+                <TouchableOpacity
+                  key={label}
+                  onPress={() => { setActiveGraph(label); setCurrentPage(0); }}
+                  style={[styles.movementSwitchButton, { backgroundColor: activeGraph === label ? theme.primary : "#ccc" }]}
+                >
+                  <Text style={styles.tabText}>{label.toUpperCase()}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
           </Animated.View>
         </View>
       </Modal>
@@ -381,9 +306,8 @@ const styles = StyleSheet.create({
     marginVertical: 10,
     marginHorizontal: 16,
     backgroundColor: "#dff5f3",
-    // borderRadius: 12,
-    borderTopLeftRadius:20,
-    borderTopRightRadius:20,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     elevation: 3,
     shadowColor: "#000",
     shadowOpacity: 0.08,
@@ -397,25 +321,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#333",
   },
-  wholecard:{
+  wholecard: {
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 4,
-    // justifyContent:"space-between"
   },
-  iconstyle:{
-
-    marginTop:0
+  iconstyle: {
+    marginTop: 0
   },
-    cardContent: {
-      width:260,
-      marginLeft:10,
+  cardContent: {
+    width: 260,
+    marginLeft: 10,
     flexDirection: "row",
     alignItems: "center",
-    // marginBottom: 4,
-    justifyContent:"space-between"
+    justifyContent: "space-between"
   },
- 
   cardSubtext: {
     fontSize: 12,
     color: "#666",
@@ -467,14 +387,12 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   closeButton: {
-    backgroundColor:"red",
+    // backgroundColor: "red",
     position: "absolute",
-    right: 10,
-    top: 10,
+    right: 5,
+    top: 5,
     zIndex: 1,
-    // overflow:"hidden",
-    // borderTopRightRadius:16
-    borderRadius:23
+    // borderRadius: 23
   },
   tabContainer: {
     flexDirection: "row",
@@ -497,10 +415,27 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     padding: 10,
   },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+   movementScrollBar: {
+    flexDirection: 'row',
+    paddingVertical: 8,
+    // paddingHorizontal: 10,
+    
+    
+  },
+  movementSwitchButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    marginHorizontal: 6,
+  },
 });
 
 export default MovementAnalysisGraph;
-
 
 
 

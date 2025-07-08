@@ -9,6 +9,7 @@ import {
   Dimensions,
   Modal,
 } from 'react-native';
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -56,66 +57,58 @@ export default function ProfileScreen({ onLogout }) {
     onLogout();
   };
 
-  const handleDownloadPress = () => {
-    navigation.navigate('DownloadScreen');
-  };
-
   return (
-    <View style={styles.container}>
+    <View style={styles.screen}>
       <Animated.View
-        style={{
-          opacity: fadeAnim,
-          transform: [{ translateY: slideAnim }],
-          alignItems: 'center',
-          width: '100%',
-        }}
+        style={[
+          styles.cardContainer,
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
+          },
+        ]}
       >
         <Ionicons name="person-circle-outline" size={100} color="#1E3A8A" />
 
         {user ? (
-          <Animatable.View
-            animation="fadeInUp"
-            duration={800}
-            delay={300}
-            style={styles.card}
-          >
-            <Text style={styles.cardTitle}>
+          <Animatable.View animation="fadeInUp" duration={800} delay={300} style={styles.card}>
+            <Text style={styles.nameText}>
               Welcome, {user.first_name} {user.last_name}!
             </Text>
-            <Text style={styles.cardInfo}>
-              👤 Username: <Text style={styles.cardValue}>{user.username}</Text>
+            <Text style={styles.infoText}>
+              👤 Username: <Text style={styles.valueText}>{user.username}</Text>
             </Text>
-            <Text style={styles.cardInfo}>
-              <Ionicons name="mail-outline" size={19} /> Email:{' '}
-              <Text style={styles.cardValue}>{user.email}</Text>
+            <Text style={styles.infoText}>
+              <Ionicons name="mail-outline" size={17} /> Email:{' '}
+              <Text style={styles.valueText}>{user.email}</Text>
             </Text>
           </Animatable.View>
         ) : (
-          <Text style={styles.title}>Loading user info...</Text>
+          <Text style={styles.loadingText}>Loading user info...</Text>
         )}
 
-        <TouchableOpacity style={styles.downloadButton} onPress={handleDownloadPress}>
+        <TouchableOpacity style={styles.actionButtonBlue} onPress={() => navigation.navigate('DownloadScreen')}>
           <Ionicons name="cloud-download-outline" size={20} color="white" />
-          <Text style={styles.downloadText}>Download Reports</Text>
+          <Text style={styles.buttonText}>Download Reports</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.logoutButton} onPress={() => setShowLogoutModal(true)}>
+        <TouchableOpacity style={styles.actionButtonGreen} onPress={() => navigation.navigate('HistoryScreen')}>
+          <Ionicons name="time-outline" size={20} color="white" />
+          <Text style={styles.buttonText}>View History</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.actionButtonRed} onPress={() => setShowLogoutModal(true)}>
           <Ionicons name="log-out-outline" size={20} color="white" />
-          <Text style={styles.logoutText}>Logout</Text>
+          <Text style={styles.buttonText}>Logout</Text>
         </TouchableOpacity>
       </Animated.View>
 
-      {/* 🔒 Logout Confirmation Modal */}
+      {/* Logout Modal */}
       <Modal transparent visible={showLogoutModal} animationType="fade">
         <View style={styles.modalBackdrop}>
-          <Animatable.View
-            animation="bounceIn"
-            duration={600}
-            style={styles.modalCard}
-          >
+          <Animatable.View animation="zoomIn" duration={400} style={styles.modalCard}>
             <Ionicons name="alert-circle-outline" size={40} color="#dc2626" />
             <Text style={styles.modalText}>Are you sure you want to logout?</Text>
-
             <View style={styles.modalActions}>
               <TouchableOpacity
                 style={[styles.modalButton, { backgroundColor: '#6B7280' }]}
@@ -138,114 +131,112 @@ export default function ProfileScreen({ onLogout }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
+  screen: {
     flex: 1,
+    backgroundColor: '#E5E7EB',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F1F5F9',
-    padding: 20,
+  },
+  cardContainer: {
+    width: width * 0.9,
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 10,
   },
   card: {
     width: '100%',
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 20,
-    marginTop: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 8,
-    alignItems: 'flex-start',
+    marginTop: 10,
+    marginBottom: 20,
   },
-  cardTitle: {
+  nameText: {
     fontSize: 22,
     fontWeight: '700',
     color: '#1E3A8A',
-    marginBottom: 16,
+    marginBottom: 10,
+    textAlign: 'center',
   },
-  cardInfo: {
+  infoText: {
     fontSize: 16,
     color: '#374151',
     marginBottom: 8,
+    textAlign: 'center',
   },
-  cardValue: {
+  valueText: {
     fontWeight: '600',
     color: '#111827',
   },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1E3A8A',
-    marginTop: 10,
-    marginBottom: 14,
-    textAlign: 'center',
+  loadingText: {
+    fontSize: 18,
+    color: '#6B7280',
+    marginVertical: 20,
   },
-  downloadButton: {
+actionButtonBlue: {
+  flexDirection: 'row',
+  backgroundColor: '#5457a8', 
+  paddingVertical: 12,
+  paddingHorizontal: 24,
+  borderRadius: 12,
+  marginTop: 16,
+  alignItems: 'center',
+  gap: 8,
+  width: '100%',
+  justifyContent: 'center',
+},
+  actionButtonGreen: {
     flexDirection: 'row',
-    backgroundColor: '#2563EB',
+      backgroundColor: '#8c2b81', 
     paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     borderRadius: 12,
-    marginTop: 24,
+    marginTop: 12,
     alignItems: 'center',
     gap: 8,
-    elevation: 3,
-    shadowColor: '#2563EB',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    width: '100%',
+    justifyContent: 'center',
   },
-  downloadText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  logoutButton: {
+  actionButtonRed: {
     flexDirection: 'row',
-    backgroundColor: '#EF4444',
+    backgroundColor: '#7f9dba',
     paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     borderRadius: 12,
-    marginTop: 16,
+    marginTop: 12,
     alignItems: 'center',
     gap: 8,
-    elevation: 3,
-    shadowColor: '#EF4444',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
+    width: '100%',
+    justifyContent: 'center',
   },
-  logoutText: {
-    color: 'white',
+  buttonText: {
+    color: '#fff',
     fontSize: 16,
     fontWeight: '600',
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   modalCard: {
     backgroundColor: '#fff',
-    padding: 25,
+    padding: 24,
+    borderRadius: 20,
     width: '80%',
-    borderRadius: 16,
     alignItems: 'center',
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
+    elevation: 10,
   },
   modalText: {
     fontSize: 18,
     fontWeight: '600',
     color: '#111827',
     textAlign: 'center',
-    marginTop: 10,
-    marginBottom: 20,
+    marginVertical: 20,
   },
   modalActions: {
     flexDirection: 'row',

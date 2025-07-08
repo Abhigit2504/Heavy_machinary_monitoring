@@ -36,7 +36,7 @@ import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import MachineDetail from '../screens/MachineDetail';
 import DownloadScreen from '../screens/DownloadScreen';
-
+import HistoryScreen from "../screens/HistoryScreen";
 const Stack = createNativeStackNavigator();
 
 const AppNavigator = () => {
@@ -76,6 +76,7 @@ const AppNavigator = () => {
           </Stack.Screen>
           <Stack.Screen name="MachineDetail" component={MachineDetail} options={{ headerShown: true, title: 'Machine Detail' }} />
           <Stack.Screen name="DownloadScreen" component={DownloadScreen} options={{ headerShown: true, title: 'Download Report' }} />
+           <Stack.Screen name="HistoryScreen" component={HistoryScreen} />
         </>
       ) : (
         <>

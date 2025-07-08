@@ -251,9 +251,9 @@ const InfoWrapper = () => {
         ))}
         <TouchableOpacity
           onPress={() => navigation.navigate('DownloadScreen')}
-          style={[styles.rangeBtn, { backgroundColor: '#1E40AF' }]}
+          style={[styles.rangeBtn, { backgroundColor: '#7ce846' }]}
         >
-          <Text style={{ color: '#fff', fontWeight: 'bold' }}>
+          <Text style={{ color: 'black', fontWeight: 'bold' }}>
             <Ionicons name="cloud-download-outline" size={16} /> Download
           </Text>
         </TouchableOpacity>
