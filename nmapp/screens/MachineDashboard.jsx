@@ -17,10 +17,10 @@ import { PieChart } from 'react-native-chart-kit';
 import { Ionicons } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 import customParseFormat from 'dayjs/plugin/customParseFormat';
-
+import { BASE_URL } from '../config';
 dayjs.extend(customParseFormat);
 
-const BASE_URL = 'http://192.168.1.5:8000';
+// const BASE_URL = 'http://192.168.1.4:8000';
 const screenWidth = Dimensions.get('window').width;
 
 const MachineDashboard = ({ navigation }) => {

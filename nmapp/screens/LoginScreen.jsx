@@ -15,6 +15,8 @@ import {
   Pressable,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BASE_URL } from '../config';
+
 import { Ionicons } from '@expo/vector-icons';
 
 const { width, height } = Dimensions.get('window');
@@ -79,7 +81,7 @@ export default function LoginScreen({ navigation, onLogin }) {
     setLoading(true);
 
     try {
-      const response = await fetch('http://192.168.1.5:8000/api/auth/login/', {
+      const response = await fetch(`${BASE_URL}/api/auth/login/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email_or_username: emailOrUsername, password }),

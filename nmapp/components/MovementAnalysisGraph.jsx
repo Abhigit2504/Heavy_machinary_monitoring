@@ -28,8 +28,10 @@ import NoDataImage from "../assets/nodata.jpg";
 import ViewShot from "react-native-view-shot";
 import * as MediaLibrary from 'expo-media-library';
 import * as Print from 'expo-print';
+import { BASE_URL } from '../config';
 
-const BASE_URL = "http://192.168.1.5:8000";
+
+// const BASE_URL = "http://192.168.1.4:8000";
 const screenWidth = Dimensions.get("window").width;
 const MAX_DATA_POINTS = 100;
 const LABEL_WIDTH = 100;

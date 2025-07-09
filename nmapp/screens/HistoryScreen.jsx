@@ -10,7 +10,9 @@ import dayjs from 'dayjs';
 import * as Animatable from 'react-native-animatable';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 
-const BASE_URL = 'http://192.168.1.5:8000';
+// const BASE_URL = 'http://192.168.1.4:8000';
+import { BASE_URL } from '../config';
+
 
 // File-to-bin delete animation
 Animatable.initializeRegistryWithDefinitions({

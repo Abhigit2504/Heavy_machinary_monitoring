@@ -16,8 +16,10 @@ import axios from "axios";
 import { PieChart } from "react-native-chart-kit";
 import { buildDateParams } from "../utils/dateUtils";
 import Ionicons from "react-native-vector-icons/Ionicons";
+import { BASE_URL } from '../config';
 
-const BASE_URL = "http://192.168.1.5:8000";
+
+// const BASE_URL = "http://192.168.1.4:8000";
 const screenWidth = Dimensions.get("window").width;
 
 const theme = {

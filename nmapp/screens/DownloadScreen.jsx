@@ -21,7 +21,9 @@ import * as Animatable from 'react-native-animatable';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
-const BASE_URL = 'http://192.168.1.5:8000';
+// const BASE_URL = 'http://192.168.1.4:8000';
+import { BASE_URL } from '../config';
+
 
 const DownloadScreen = ({ navigation }) => {
   const [downloadType, setDownloadType] = useState('all');

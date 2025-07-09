@@ -213,7 +213,7 @@ const GfridScroller = ({ currentGfrid, fromDate, toDate, range }) => {
   const navigation = useNavigation();
 
   useEffect(() => {
-    fetch("http://192.168.1.5:8000/api/machines/")
+    fetch("http://192.168.1.4:8000/api/machines/")
       .then((res) => res.json())
       .then((data) => setGfrids(data))
       .catch((err) => console.error("GFRID Fetch Error", err));

@@ -29,8 +29,9 @@ const theme = {
   textSecondary: "#6c757d",
 };
 
+import { BASE_URL } from '../config';
 
-const BASE_URL = 'http://192.168.1.5:8000';
+// const BASE_URL = 'http://192.168.1.4:8000';
 const MAX_POINTS_PER_PAGE = 50;
 const pointWidth = 60;
 

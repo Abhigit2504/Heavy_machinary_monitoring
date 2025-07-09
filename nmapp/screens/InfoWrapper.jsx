@@ -21,7 +21,9 @@ import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { useNavigation } from '@react-navigation/native';
 import { Easing } from 'react-native';
 
-const BASE_URL = 'http://192.168.1.5:8000';
+// const BASE_URL = 'http://192.168.1.4:8000';
+import { BASE_URL } from '../config';
+
 const screenWidth = Dimensions.get('window').width;
 const MAX_POINTS_PER_PAGE = 50;
 const pointWidth = 60;

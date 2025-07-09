@@ -14,6 +14,8 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
+import { BASE_URL } from '../config';
+
 
 const { width, height } = Dimensions.get('window');
 
@@ -47,7 +49,7 @@ export default function RegisterScreen({ navigation }) {
 
     setLoading(true);
     try {
-      const response = await fetch('http://192.168.1.5:8000/api/auth/register/', {
+      const response = await fetch(`${BASE_URL}/api/auth/register/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
