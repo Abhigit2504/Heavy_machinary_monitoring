@@ -1,4 +1,3 @@
-// 👇 same imports, no changes
 import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
@@ -12,7 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import axios from 'axios';
-import { PieChart, LineChart } from 'react-native-chart-kit';
+import { LineChart } from 'react-native-chart-kit';
 import { Ionicons } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
@@ -20,8 +19,6 @@ import timezone from 'dayjs/plugin/timezone';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { useNavigation } from '@react-navigation/native';
 import { Easing } from 'react-native';
-
-// const BASE_URL = 'http://192.168.1.4:8000';
 import { BASE_URL } from '../config';
 
 const screenWidth = Dimensions.get('window').width;
@@ -30,6 +27,52 @@ const pointWidth = 60;
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
+
+const CustomBarChart = ({ data }) => {
+  const barHeights = useRef(data.map(() => new Animated.Value(0))).current;
+
+  useEffect(() => {
+    const animations = data.map((_, i) =>
+      Animated.timing(barHeights[i], {
+        toValue: data[i].value,
+        duration: 600,
+        delay: i * 120,
+        useNativeDriver: false,
+      })
+    );
+    Animated.stagger(100, animations).start();
+  }, [data]);
+
+  return (
+    <ScrollView
+      horizontal
+      contentContainerStyle={{ paddingVertical: 20, paddingHorizontal: 10 }}
+      showsHorizontalScrollIndicator={false}
+    >
+      {data.map((item, i) => (
+        <View key={i} style={{ alignItems: 'center', marginHorizontal: 10 }}>
+          <Animated.View
+            style={{
+              height: barHeights[i].interpolate({
+                inputRange: [0, 100],
+                outputRange: [0, 180],
+              }),
+              width: 26,
+              backgroundColor: item.color,
+              borderRadius: 6,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.2,
+              shadowRadius: 4,
+            }}
+          />
+          <Text style={{ fontSize: 12, marginTop: 6, color: '#1F2937' }}>{item.label}</Text>
+          <Text style={{ fontSize: 12, color: '#475569' }}>{item.value}%</Text>
+        </View>
+      ))}
+    </ScrollView>
+  );
+};
 
 const InfoWrapper = () => {
   const [priorityUsage, setPriorityUsage] = useState([]);
@@ -89,7 +132,7 @@ const InfoWrapper = () => {
       chartAnim.setValue(0);
       Animated.timing(chartAnim, {
         toValue: 1,
-        duration: 6000,
+        duration: 600,
         useNativeDriver: true,
         easing: Easing.out(Easing.exp),
       }).start();
@@ -132,17 +175,15 @@ const InfoWrapper = () => {
     setRange(null);
   };
 
-  const getPieChartData = () => {
+  const getBarChartData = () => {
     const total = priorityUsage.length || 1;
     return priorityUsage.map((item, index) => {
       const hue = (index * 360) / total;
       const percent = parseFloat(item.on_percent.toFixed(2));
       return {
-        name: `GFRID${item.gfrid}: ${percent}%`,
-        population: percent > 0 ? percent : 0.01,
+        label: `GFRID${item.gfrid}`,
+        value: percent > 0 ? percent : 0.01,
         color: `hsl(${hue}, 65%, 55%)`,
-        legendFontColor: '#1F2937',
-        legendFontSize: 14,
       };
     });
   };
@@ -196,8 +237,7 @@ const InfoWrapper = () => {
           <TouchableOpacity
             disabled={page === 0}
             onPress={() =>
-              setPageState((prev) => ({ ...prev, [gfrid]: Math.max(prev[gfrid] - 1, 0) }))
-            }>
+              setPageState((prev) => ({ ...prev, [gfrid]: Math.max(prev[gfrid] - 1, 0) }))}>
             <Ionicons name="chevron-back-circle" size={30} color={page === 0 ? '#ccc' : '#1E3A8A'} />
           </TouchableOpacity>
           <Text style={styles.pageText}>{`Page ${page + 1} of ${totalPages}`}</Text>
@@ -207,13 +247,8 @@ const InfoWrapper = () => {
               setPageState((prev) => ({
                 ...prev,
                 [gfrid]: Math.min((prev[gfrid] || 0) + 1, totalPages - 1),
-              }))
-            }>
-            <Ionicons
-              name="chevron-forward-circle"
-              size={30}
-              color={page === totalPages - 1 ? '#ccc' : '#1E3A8A'}
-            />
+              }))}>
+            <Ionicons name="chevron-forward-circle" size={30} color={page === totalPages - 1 ? '#ccc' : '#1E3A8A'} />
           </TouchableOpacity>
         </View>
       </>
@@ -270,37 +305,12 @@ const InfoWrapper = () => {
         </View>
       )}
 
-      {/* Pie Chart and Custom Legend */}
+      {/* Bar Chart */}
       {priorityUsage.length > 0 && (
-        <Animated.View style={[styles.chartCard, {
-  transform: [{ scale: chartAnim }],
-  opacity: chartAnim,
-}]}>
-  <Text style={styles.chartTitle}>Overall ON % (Pie)</Text>
-  <View style={styles.pieRow}>
-    <PieChart
-      data={getPieChartData()}
-      width={screenWidth * 0.5}
-      height={220}
-      chartConfig={{
-        color: () => `#000`,
-      }}
-      accessor="population"
-      backgroundColor="transparent"
-      paddingLeft="40"
-      hasLegend={false}
-    />
-    <View style={styles.pieLegend}>
-      {getPieChartData().map((item, idx) => (
-        <View key={idx} style={styles.legendItem}>
-          <View style={[styles.legendColorBox, { backgroundColor: item.color }]} />
-          <Text style={styles.legendLabel}>{item.name}</Text>
-        </View>
-      ))}
-    </View>
-  </View>
-</Animated.View>
-
+        <Animated.View style={[styles.chartCard, { transform: [{ scale: chartAnim }], opacity: chartAnim }]}>
+          <Text style={styles.chartTitle}>Overall</Text>
+          <CustomBarChart data={getBarChartData()} />
+        </Animated.View>
       )}
 
       {/* Machine Data Cards */}
@@ -334,11 +344,10 @@ const InfoWrapper = () => {
 };
 
 const styles = StyleSheet.create({
-  // ... (keep your original styles untouched)
   container: {
-    padding: 10,
-    backgroundColor: '#f0f4f8',
-    marginBottom: 95,
+    flex: 1,
+    padding: 16,
+    backgroundColor: '#F0F4F8',
   },
   loadingContainer: {
     flex: 1,
@@ -433,6 +442,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'nowrap',
     marginTop: 10,
+
     marginBottom: 10,
   },
   labelItem: {

@@ -10,18 +10,101 @@ import {
   Animated,
   Easing,
   Dimensions,
+  ScrollView,
+  Pressable,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
-import { PieChart } from 'react-native-chart-kit';
 import { Ionicons } from '@expo/vector-icons';
 import dayjs from 'dayjs';
 import customParseFormat from 'dayjs/plugin/customParseFormat';
 import { BASE_URL } from '../config';
-dayjs.extend(customParseFormat);
 
-// const BASE_URL = 'http://192.168.1.4:8000';
+dayjs.extend(customParseFormat);
 const screenWidth = Dimensions.get('window').width;
+
+const CustomBarChart = ({ data, scrollViewRef }) => {
+  const barHeights = useRef(data.map(() => new Animated.Value(0))).current;
+  const [scrollX, setScrollX] = useState(0);
+
+  useEffect(() => {
+    const animations = data.map((_, i) =>
+      Animated.timing(barHeights[i], {
+        toValue: data[i].value,
+        duration: 600,
+        delay: i * 120,
+        useNativeDriver: false,
+      })
+    );
+    Animated.stagger(100, animations).start();
+  }, [data]);
+
+  const scrollTo = (direction) => {
+    const newOffset = direction === 'right' ? scrollX + 150 : scrollX - 150;
+    scrollViewRef.current?.scrollTo({ x: newOffset, animated: true });
+    setScrollX(newOffset);
+  };
+
+
+  return (
+     <View style={{ width: '100%', position: 'relative' }}>
+      <TouchableOpacity style={styles.scrollButtonLeft} onPress={() => scrollTo('left')}>
+        <Ionicons name="chevron-back" size={24} color="#3B82F6" />
+      </TouchableOpacity>
+
+      <ScrollView
+        ref={scrollViewRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        onScroll={(event) => {
+          setScrollX(event.nativeEvent.contentOffset.x);
+        }}
+        scrollEventThrottle={16}
+        contentContainerStyle={{
+          flexDirection: 'row',
+          paddingVertical: 20,
+          paddingHorizontal: 40,
+          minWidth: data.length * 80,
+        }}
+      >
+        {data.map((item, i) => (
+          <View
+            key={i}
+            style={{
+              alignItems: 'center',
+              marginHorizontal: 12,
+              width: 60,
+            }}
+          >
+            <Animated.View
+              style={{
+                height: barHeights[i].interpolate({
+                  inputRange: [0, 100],
+                  outputRange: [0, 180],
+                }),
+                width: 26,
+                backgroundColor: item.color,
+                borderRadius: 6,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.2,
+                shadowRadius: 4,
+              }}
+            />
+            <Text style={{ fontSize: 12, marginTop: 6, color: '#1F2937', textAlign: 'center' }}>
+              {item.label}
+            </Text>
+            <Text style={{ fontSize: 12, color: '#475569' }}>{item.value}%</Text>
+          </View>
+        ))}
+      </ScrollView>
+
+      <TouchableOpacity style={styles.scrollButtonRight} onPress={() => scrollTo('right')}>
+        <Ionicons name="chevron-forward" size={24} color="#3B82F6" />
+      </TouchableOpacity>
+    </View>
+  );
+};
 
 const MachineDashboard = ({ navigation }) => {
   const [machines, setMachines] = useState([]);
@@ -32,11 +115,10 @@ const MachineDashboard = ({ navigation }) => {
   const [typedText, setTypedText] = useState('');
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(-30)).current;
-
-  const fullTextRef = useRef('');
-
   const chartAnim = useRef(new Animated.Value(1)).current;
   const cardAnimations = useRef([]).current;
+  const fullTextRef = useRef('');
+  const scrollViewRef = useRef(null);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -45,8 +127,8 @@ const MachineDashboard = ({ navigation }) => {
         const parsed = JSON.parse(userData);
         setUser(parsed);
         fullTextRef.current = `Welcome, ${parsed.first_name} ${parsed.last_name}!`;
-        typeText(); // start typing
-        animateWelcome(); // animate
+        typeText();
+        animateWelcome();
       }
     };
     fetchUser();
@@ -86,7 +168,7 @@ const MachineDashboard = ({ navigation }) => {
       setLoading(true);
       const [machineRes, priorityRes] = await Promise.all([
         axios.get(`${BASE_URL}/api/machines/`),
-        axios.get(`${BASE_URL}/api/priority-usage/`)
+        axios.get(`${BASE_URL}/api/priority-usage/`),
       ]);
       setMachines(machineRes.data);
       setPriorityUsage(priorityRes.data);
@@ -95,7 +177,7 @@ const MachineDashboard = ({ navigation }) => {
         toValue: 1,
         duration: 400,
         useNativeDriver: true,
-        easing: Easing.out(Easing.exp)
+        easing: Easing.out(Easing.exp),
       }).start();
     } catch (err) {
       console.error(err);
@@ -116,7 +198,7 @@ const MachineDashboard = ({ navigation }) => {
     }).start();
   };
 
-  const handleChartPress = () => {
+  const handleChartLongPress = () => {
     Animated.sequence([
       Animated.timing(chartAnim, {
         toValue: 1.1,
@@ -127,33 +209,17 @@ const MachineDashboard = ({ navigation }) => {
         toValue: 1,
         duration: 150,
         useNativeDriver: true,
-      })
+      }),
     ]).start(() => navigation.navigate('Info'));
-  };
-
-  const getPieChartData = () => {
-    const total = priorityUsage.length || 1;
-    return priorityUsage.map((item, index) => {
-      const hue = (index * 360) / total;
-      return {
-        name: `GFRID${item.gfrid}:${item.on_percent.toFixed(1)}%`,
-        population: item.on_percent === 0 ? 0.01 : parseFloat(item.on_percent.toFixed(2)),
-        color: `hsl(${hue}, 65%, 55%)`,
-        legendFontColor: '#1F2937',
-        legendFontSize: 14,
-      };
-    });
   };
 
   const formatTimestamp = (ts) => {
     if (!ts) return 'N/A';
     const parsed = dayjs(ts, 'YYYY-MM-DD HH:mm:ss');
-    return parsed.isValid()
-      ? parsed.format('DD-MMM-YYYY, hh:mm A')
-      : 'Invalid';
+    return parsed.isValid() ? parsed.format('DD-MMM-YYYY, hh:mm A') : 'Invalid';
   };
 
-  const filteredMachines = machines.filter(machine =>
+  const filteredMachines = machines.filter((machine) =>
     machine.gfrid.toString().includes(searchGfrid)
   );
 
@@ -173,12 +239,14 @@ const MachineDashboard = ({ navigation }) => {
       <Animated.View
         style={{
           opacity: cardAnimations[index],
-          transform: [{
-            translateY: cardAnimations[index].interpolate({
-              inputRange: [0, 1],
-              outputRange: [50, 0],
-            })
-          }]
+          transform: [
+            {
+              translateY: cardAnimations[index].interpolate({
+                inputRange: [0, 1],
+                outputRange: [50, 0],
+              }),
+            },
+          ],
         }}
       >
         <TouchableOpacity
@@ -225,41 +293,33 @@ const MachineDashboard = ({ navigation }) => {
           <>
             {priorityUsage.length > 0 && (
               <Animated.View
-                style={[styles.chartCard, {
-                  transform: [{ scale: chartAnim }],
-                  opacity: chartAnim,
-                }]}
+                style={[
+                  styles.chartCard,
+                  {
+                    transform: [{ scale: chartAnim }],
+                    opacity: chartAnim,
+                  },
+                ]}
               >
                 <TouchableOpacity style={styles.closeIcon} onPress={hidePieChart}>
                   <Ionicons name="close" size={20} color="#4B5563" />
                 </TouchableOpacity>
-                <TouchableOpacity onPress={handleChartPress} activeOpacity={0.9}>
+
+                <Pressable onLongPress={handleChartLongPress} style={{ flex: 1 }}>
                   <Text style={styles.chartTitle}>Past 1 Week ON % per GFRID</Text>
-                  <View style={styles.chartWrapper}>
-                    <PieChart
-                      data={getPieChartData()}
-                      width={screenWidth / 2}
-                      height={220}
-                      chartConfig={{
-                        color: () => `#000`,
-                        labelColor: () => '#1F2937',
-                      }}
-                      accessor="population"
-                      backgroundColor="transparent"
-                      paddingLeft="40"
-                      hasLegend={false}
-                      absolute
-                    />
-                    <View style={styles.legendWrapper}>
-                      {getPieChartData().map((item, index) => (
-                        <View key={index} style={styles.legendItem}>
-                          <View style={[styles.legendColor, { backgroundColor: item.color }]} />
-                          <Text style={styles.legendText}>{item.name}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  </View>
-                </TouchableOpacity>
+                  <CustomBarChart 
+                    data={priorityUsage.map((item, index) => ({
+                      label: `GFRID :${item.gfrid}`,
+                      value: parseFloat(item.on_percent.toFixed(2)),
+                      color: [
+                        '#3B82F6', '#F97316', '#10B981', '#EF4444',
+                        '#8B5CF6', '#14B8A6', '#F59E0B', '#EC4899',
+                        '#0EA5E9', '#6366F1'
+                      ][index % 10],
+                    }))}
+                    scrollViewRef={scrollViewRef}
+                  />
+                </Pressable>
               </Animated.View>
             )}
 
@@ -317,10 +377,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     padding: 24,
     marginBottom: 16,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    borderBottomLeftRadius: 10,
-    borderBottomRightRadius: 10,
+    borderRadius: 20,
     elevation: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },
@@ -339,26 +396,30 @@ const styles = StyleSheet.create({
     color: '#475569',
     marginTop: 4,
   },
-  chartCard: {
-    backgroundColor: '#FFFFFF',
-    padding: 20,
-    paddingTop: 28,
-    borderRadius: 20,
-    marginBottom: 20,
-    elevation: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    position: 'relative',
-  },
+chartCard: {
+  backgroundColor: '#ffffff',
+  borderRadius: 24,
+  paddingVertical: 28,
+  paddingHorizontal: 20,
+  marginBottom: 15,
+  shadowColor: 'black',
+  shadowOffset: { width: 0, height: 6 },
+  shadowOpacity: 0.15,
+  shadowRadius: 10,
+  elevation: 12,
+  position: 'relative',
+  borderWidth: 1,
+  borderColor: '#E0E7FF',
+},
   chartTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 14,
-    color: '#1E3A8A',
-    textAlign: 'center',
-  },
+  fontSize: 17,
+  fontWeight: '900',
+  marginBottom: 20,
+  color: '#1E3A8A',
+  textAlign: 'center',
+  textTransform: 'uppercase',
+  letterSpacing: 1,
+},
   closeIcon: {
     position: 'absolute',
     top: 10,
@@ -366,39 +427,58 @@ const styles = StyleSheet.create({
     zIndex: 10,
     padding: 6,
   },
-  chartWrapper: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 8,
-  },
-  legendWrapper: {
-    flex: 1,
-    flexWrap: 'wrap',
-    paddingLeft: 3,
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 3,
-  },
-  legendColor: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 3,
-  },
- legendText: {
-  fontSize: 13,
-  color: '#1F2937',
-  flexShrink: 1,
-  flexWrap: 'wrap',       // ✅ Allow wrapping
-  maxWidth: screenWidth / 2.5, // ✅ Adjust based on your layout
+ scrollButtonLeft: {
+  position: 'absolute',
+  left: 10,
+  top: '50%',
+  zIndex: 20,
+  backgroundColor: 'rgba(255,255,255,0.9)',
+  borderRadius: 50,
+  padding: 5,
+  transform: [{ translateY: -12 }],
+  elevation: 8,
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 3 },
+  shadowOpacity: 0.2,
+  shadowRadius: 5,
+  borderWidth: 1,
+  borderColor: '#D1D5DB',
+   marginTop:40
+},
+ scrollButtonRight: {
+  position: 'absolute',
+  right: 10,
+  top: '50%',
+  zIndex: 20,
+  backgroundColor: 'rgba(255,255,255,0.9)',
+  borderRadius: 50,
+  padding: 5,
+  transform: [{ translateY: -12 }],
+  elevation: 8,
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 3 },
+  shadowOpacity: 0.2,
+  shadowRadius: 5,
+  borderWidth: 1,
+  borderColor: '#D1D5DB',
+  marginTop:40
 },
 
 });
 
 export default MachineDashboard;
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

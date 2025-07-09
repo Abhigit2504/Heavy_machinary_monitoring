@@ -794,6 +794,10 @@ def format_duration(seconds):
         return f"{hrs:02}:{mins:02}:{secs:02}"
     except:
         return "00:00:00"
+from reportlab.graphics.charts.barcharts import VerticalBarChart
+from reportlab.graphics.shapes import Drawing, String
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.enums import TA_CENTER
 
 @csrf_exempt
 def download_all_machines_pdf(request):
@@ -814,11 +818,21 @@ def download_all_machines_pdf(request):
 
         all_gfrids = MachineEvent.objects.values_list("GFRID", flat=True).distinct()
         buffer = BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=25, leftMargin=25, topMargin=30, bottomMargin=30)
+        doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=30, leftMargin=30, topMargin=40, bottomMargin=30)
         styles = getSampleStyleSheet()
         elements = []
 
-        elements.append(Paragraph(f"<b style='font-size:18pt'>All Machines Usage Report</b><br/><br/><b>From:</b> {from_date} <b>To:</b> {to_date}", styles['Title']))
+        # Custom title style
+        title_style = ParagraphStyle(
+            name="CustomTitle",
+            parent=styles["Title"],
+            fontSize=18,
+            alignment=TA_CENTER,
+            spaceAfter=20
+        )
+
+        elements.append(Paragraph("🛠 <b>All Machines Usage Report</b>", title_style))
+        elements.append(Paragraph(f"<b>Date Range:</b> {from_date} to {to_date}", styles["Normal"]))
         elements.append(Spacer(1, 12))
 
         all_segments = []
@@ -838,7 +852,6 @@ def download_all_machines_pdf(request):
             df['TS_OFF'] = df['TS_OFF'].apply(lambda x: min(x, to_dt) if pd.notnull(x) else to_dt)
 
             df['TS'] = df['TS'].apply(lambda x: max(x, from_dt) if pd.notnull(x) else from_dt)
-
             df = df[df['TS_OFF'] > df['TS']].copy()
             df['status'] = df['status'].fillna(0).astype(int)
 
@@ -878,9 +891,27 @@ def download_all_machines_pdf(request):
         total_on = gfrid_summary['duration_sec'].sum()
 
         if not gfrid_summary.empty and total_on > 0:
-            pie_data = []
-            pie_colors = []
-            legend_items = []
+            # Convert to hours
+            gfrid_summary['duration_hr'] = gfrid_summary['duration_sec'] / 3600
+            bar_data = [[round(row['duration_hr'], 2) for _, row in gfrid_summary.iterrows()]]
+            gfrid_labels = [str(row['gfrid']) for _, row in gfrid_summary.iterrows()]
+
+            d = Drawing(420, 250)
+            bc = VerticalBarChart()
+            bc.x = 40
+            bc.y = 50
+            bc.height = 150
+            bc.width = 340
+            bc.data = bar_data
+            bc.categoryAxis.categoryNames = gfrid_labels
+            bc.categoryAxis.labels.boxAnchor = 'ne'
+            bc.categoryAxis.labels.angle = 45
+            bc.valueAxis.valueMin = 0
+            bc.valueAxis.valueMax = max(bar_data[0]) * 1.1
+            bc.valueAxis.valueStep = max(bar_data[0]) // 5 or 1
+            bc.barLabels.nudge = 8
+            bc.barLabels.fontSize = 8
+            bc.barLabelFormat = '%.2f hr'
 
             color_palette = [
                 colors.HexColor('#4CAF50'), colors.HexColor('#2196F3'), colors.HexColor('#FF9800'),
@@ -889,81 +920,42 @@ def download_all_machines_pdf(request):
                 colors.HexColor('#607D8B'), colors.HexColor('#FFC107'), colors.HexColor('#E91E63')
             ]
 
-            d = Drawing(300, 200)
-            pie = Pie()
-            pie.x = 65
-            pie.y = 30
-            pie.width = 150
-            pie.height = 150
+            for i in range(len(bar_data[0])):
+                bc.bars[i].fillColor = color_palette[i % len(color_palette)]
 
-            for i, row in gfrid_summary.iterrows():
-                duration = row['duration_sec']
-                gfrid = row['gfrid']
-                pct = (duration / total_on) * 100
-
-                pie_data.append(duration)
-                color = color_palette[i % len(color_palette)]
-                pie_colors.append(color)
-                legend_items.append((color, f"GFRID {gfrid}: {round(pct, 1)}%"))
-
-            pie.data = pie_data
-            pie.labels = [''] * len(pie_data)
-
-            for i, color in enumerate(pie_colors):
-                pie.slices[i].fillColor = color
-
-            d.add(pie)
-
-            elements.append(Paragraph("<b>Machine ON Duration % by GFRID</b>", styles["Heading3"]))
+            d.add(bc)
+            elements.append(Paragraph("📊 <b>Machine ON Duration (hours) per GFRID</b>", styles["Heading3"]))
             elements.append(d)
-            elements.append(Spacer(1, 8))
-
-            legend_data = []
-            for color, label in legend_items:
-                legend_data.append([
-                    '', Paragraph(f'<font size=9>{label}</font>', styles["Normal"])
-                ])
-
-            legend_table = Table(legend_data, colWidths=[12, 300])
-            legend_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, -1), colors.whitesmoke),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('INNERGRID', (0, 0), (-1, -1), 0.25, colors.grey),
-                ('BOX', (0, 0), (-1, -1), 0.25, colors.black),
-                ('FONTSIZE', (0, 0), (-1, -1), 9),
-                ('LEFTPADDING', (1, 0), (1, -1), 4),
-            ]))
-
-            for i, (color, _) in enumerate(legend_items):
-                legend_table._cellvalues[i][0] = Drawing(10, 10)
-                legend_table._cellvalues[i][0].add(Rect(0, 0, 10, 10, fillColor=color))
-
-            elements.append(legend_table)
             elements.append(Spacer(1, 20))
 
         for (gfrid, date), group in seg_df.groupby(['gfrid', 'date']):
-            elements.append(Paragraph(f"<b>GFRID: {gfrid} | Date: {date}</b>", styles["Heading3"]))
-            rows = [["Start Time", "End Time", "Status", "Duration"]]
+            elements.append(Paragraph(f"<b>🖥 GFRID:</b> {gfrid} <b>📅 Date:</b> {date}", styles["Heading3"]))
+            rows = [["Start Time", "End Time", "Status", "Duration (hr)"]]
             unique_rows = group.sort_values('start').drop_duplicates(
                 subset=['start', 'end', 'status', 'duration_sec']
             )
 
             for _, row in unique_rows.iterrows():
+                duration_hr = round(row['duration_sec'] / 3600, 2)
                 rows.append([
                     row['start'].strftime("%Y-%m-%d %H:%M:%S"),
                     row['end'].strftime("%Y-%m-%d %H:%M:%S"),
                     "ON" if row['status'] == 1 else "OFF",
-                    format_duration(row['duration_sec'])
+                    f"{duration_hr:.2f}"
                 ])
 
-            table = Table(rows, style=[
-                ('BACKGROUND', (0, 0), (-1, 0), colors.darkblue),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            table = Table(rows, colWidths=[120, 120, 70, 90])
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+                ('GRID', (0, 0), (-1, -1), 0.3, colors.grey),
                 ('FONTSIZE', (0, 0), (-1, -1), 9),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER')
-            ])
-            elements.extend([table, Spacer(1, 16)])
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+            ]))
+
+            elements.append(table)
+            elements.append(Spacer(1, 12))
 
         doc.build(elements)
         buffer.seek(0)
@@ -974,7 +966,6 @@ def download_all_machines_pdf(request):
     except Exception as e:
         import traceback
         print("❌ Exception in download_all_machines_pdf:", traceback.format_exc())
-        from django.http import JsonResponse
         return HttpResponse("No data in this time range. Try another range.", status=404)
 
 
